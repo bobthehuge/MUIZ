@@ -52,9 +52,23 @@ impl WidgetDrawable for Rect {
     fn toggle_visibility(&mut self) {
         self.visible ^= true
     }
-    fn draw(&self, handle: &mut RaylibDrawHandle) {
+    fn draw(&self, handle: &mut RaylibDrawHandle, _: &mut EnvMap) {
         handle.draw_rectangle_rec(self.rect, Color::RED)
     }
+}
+
+fn on_loop(ui: &mut UI, (_rl, _thread): RaylibContext) {
+    ui.events.queue.push(WidgetEvent::drawcall())
+}
+
+fn on_event(ui: &mut UI, (rl, thread): RaylibContext, _e: WidgetEvent) {
+    let mut draw_handle = rl.begin_drawing(thread);
+
+    draw_handle.clear_background(Color::WHITE);
+
+    ui.widgets.for_each_drawables(|x| {
+        x.render(&mut draw_handle, &mut ui.data.globals)
+    })
 }
 
 fn main() {
@@ -64,15 +78,16 @@ fn main() {
         .title("MUIZ")
         .build();
 
-    let mut ui = UIBuilder::create().build();
+    let mut ui = UIBuilder::init().build();
     let mut rect = Rect::new("rect", &Rectangle::new(50.0, 50.0, 50.0, 50.0));
     rect.show();
-    let id = ui.register_as_drawable(rect);
-    ui.tag_index(id, String::from("L9"));
+    let id = ui.widgets.register_as_drawable(rect);
+    ui.widgets.tag(id, String::from("L9"));
 
-    while !rl.window_should_close() && !ui.should_exit() {
-        let mut handle = rl.begin_drawing(&thread);
-        handle.clear_background(Color::WHITE);
-        ui.for_each_drawables(|x| x.render(&mut handle))
-    }
+    let handlers = UiHandlers {
+        on_loop: Box::new(on_loop),
+        on_event: Box::new(on_event),
+    };
+
+    ui.run((&mut rl, &thread), &handlers);
 }

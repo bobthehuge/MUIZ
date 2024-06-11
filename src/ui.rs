@@ -1,7 +1,16 @@
-use crate::widgets::*;
+use raylib::prelude::*;
 
-use raylib::core::drawing::RaylibDrawHandle;
-use std::collections::HashMap;
+use crate::widgets::*;
+use std::collections::{BinaryHeap, HashMap};
+
+pub type WidgetID = usize;
+pub type EnvMap = HashMap<String, DataObj>;
+pub type TagMap = HashMap<String, WidgetID>;
+pub type WidgetMap = HashMap<WidgetID, Box<dyn Widget>>;
+pub type EventHeap = BinaryHeap<WidgetEvent>;
+pub type EventHandler = Box<dyn Fn(&mut UI, RaylibContext, WidgetEvent)>;
+pub type LoopHandler = Box<dyn Fn(&mut UI, RaylibContext)>;
+pub type RaylibContext<'a> = (&'a mut RaylibHandle, &'a RaylibThread);
 
 #[allow(non_camel_case_types)]
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -11,19 +20,51 @@ pub enum UiState {
     UI_LOCKED,
     UI_DRAW,
     UI_CALL,
+    // Keyboard or Mouse inputs
     UI_INTERACT,
+    // External inputs ? (idk atm)
+    UI_IO,
     UI_EXIT,
 }
 
-pub type Index = usize;
+#[derive(Default)]
+pub struct UiData {
+    pub globals: EnvMap,
+}
+
+#[derive(Default)]
+pub struct UiWidgets {
+    pub drawables: Vec<WidgetID>,
+    pub tags: TagMap,
+    pub widgets: WidgetMap,
+    indices: usize,
+}
+
+#[derive(Default)]
+pub struct UiEvents {
+    pub queue: EventHeap,
+}
 
 #[derive(Default)]
 pub struct UI {
     pub status: UiState,
-    pub drawables: Vec<Index>,
-    pub tags: HashMap<String, Index>,
-    pub widgets: HashMap<Index, Box<dyn Widget>>,
-    indices: usize,
+    pub data: UiData,
+    pub events: UiEvents,
+    pub widgets: UiWidgets,
+}
+
+pub struct UiHandlers {
+    pub on_loop: LoopHandler,
+    pub on_event: EventHandler,
+}
+
+impl Default for UiHandlers {
+    fn default() -> Self {
+        Self {
+            on_loop: Box::new(|_, _| {}),
+            on_event: Box::new(|_, _, _| {}),
+        }
+    }
 }
 
 impl UI {
@@ -31,25 +72,37 @@ impl UI {
         self.status == UiState::UI_EXIT
     }
 
-    pub fn next_index(&mut self) -> Index {
-        let idx = self.indices;
+    pub fn run(&mut self, (rl, thread): RaylibContext, handlers: &UiHandlers) {
+        while !rl.window_should_close() && !self.should_exit() {
+            (*handlers.on_loop)(self, (rl, thread));
+
+            if let Some(event) = self.events.queue.pop() {
+                (*handlers.on_event)(self, (rl, thread), event);
+            }
+        }
+    }
+}
+
+impl UiWidgets {
+    pub fn next_id(&mut self) -> WidgetID {
+        let id = self.indices;
         self.indices += 1;
-        idx
+        id
     }
 
-    pub fn try_next_index(&mut self) -> Option<Index> {
-        let idx = self.indices;
+    pub fn try_next_id(&mut self) -> Option<WidgetID> {
+        let id = self.indices;
         self.indices = self.indices.checked_add(1)?;
-        Some(idx)
+        Some(id)
     }
 
     #[inline]
-    pub fn indices(&self) -> usize {
+    pub fn ids(&self) -> usize {
         self.indices
     }
 
-    pub fn tag_index(&mut self, i: Index, tag: String) -> Option<usize> {
-        self.tags.insert(tag, i)
+    pub fn tag(&mut self, id: WidgetID, tag: String) -> Option<usize> {
+        self.tags.insert(tag, id)
     }
 
     pub fn get_by_tag(&self, tag: &String) -> Option<&dyn Widget> {
@@ -78,10 +131,10 @@ impl UI {
             .try_as_drawable_mut()
     }
 
-    pub fn register(&mut self, w: impl Widget + 'static) -> Index {
-        let idx = self.next_index();
-        self.widgets.insert(idx, Box::new(w));
-        idx
+    pub fn register(&mut self, w: impl Widget + 'static) -> WidgetID {
+        let id = self.next_id();
+        self.widgets.insert(id, Box::new(w));
+        id
     }
 
     #[inline]
@@ -106,10 +159,10 @@ impl UI {
     pub fn register_as_drawable(
         &mut self,
         w: impl WidgetDrawable + 'static,
-    ) -> Index {
-        let idx = self.register(w);
-        self.drawables.push(idx);
-        idx
+    ) -> WidgetID {
+        let id = self.register(w);
+        self.drawables.push(id);
+        id
     }
 
     #[inline]
@@ -138,13 +191,14 @@ impl UI {
 #[derive(Default, Debug)]
 pub struct UIBuilder {
     status: UiState,
+    globals: usize,
     drawables: usize,
     tags: usize,
     capacity: usize,
 }
 
 impl UIBuilder {
-    pub fn create() -> Self {
+    pub fn init() -> Self {
         Self {
             ..Default::default()
         }
@@ -152,6 +206,11 @@ impl UIBuilder {
 
     pub fn status(&mut self, status: UiState) -> &mut Self {
         self.status = status;
+        self
+    }
+
+    pub fn globals(&mut self, globals: usize) -> &mut Self {
+        self.globals = globals;
         self
     }
 
@@ -177,12 +236,20 @@ impl UIBuilder {
     pub fn build(&mut self) -> UI {
         UI {
             status: self.status,
-            drawables: Vec::with_capacity(self.drawables),
-            tags: HashMap::<String, Index>::with_capacity(self.tags),
-            widgets: {
-                HashMap::<Index, Box<dyn Widget>>::with_capacity(self.capacity)
+            data: UiData {
+                globals: EnvMap::with_capacity(self.globals),
             },
-            indices: 0,
+            events: UiEvents::default(),
+            widgets: UiWidgets {
+                drawables: Vec::with_capacity(self.drawables),
+                tags: TagMap::with_capacity(self.tags),
+                widgets: {
+                    HashMap::<WidgetID, Box<dyn Widget>>::with_capacity(
+                        self.capacity,
+                    )
+                },
+                indices: 0,
+            },
         }
     }
 }
