@@ -1,6 +1,8 @@
+pub mod events;
 pub mod ui;
 pub mod widgets;
 
+use crate::events::*;
 use crate::ui::*;
 use crate::widgets::*;
 use raylib::prelude::*;
@@ -58,7 +60,7 @@ impl WidgetDrawable for Rect {
 }
 
 fn on_loop(ui: &mut UI, (_rl, _thread): RaylibContext) {
-    ui.events.queue.push(WidgetEvent::drawcall())
+    ui.events.queue.push(WidgetEvent::DRAW_EVENT)
 }
 
 fn on_event(ui: &mut UI, (rl, thread): RaylibContext, _e: WidgetEvent) {

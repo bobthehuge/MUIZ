@@ -1,6 +1,7 @@
-use raylib::prelude::*;
-
+use crate::events::WidgetEvent;
 use crate::widgets::*;
+
+use raylib::prelude::*;
 use std::collections::{BinaryHeap, HashMap};
 
 pub type WidgetID = usize;
@@ -9,7 +10,7 @@ pub type TagMap = HashMap<String, WidgetID>;
 pub type WidgetMap = HashMap<WidgetID, Box<dyn Widget>>;
 pub type EventHeap = BinaryHeap<WidgetEvent>;
 pub type EventHandler = Box<dyn Fn(&mut UI, RaylibContext, WidgetEvent)>;
-pub type LoopHandler = Box<dyn Fn(&mut UI, RaylibContext)>;
+pub type BaseHandler = Box<dyn Fn(&mut UI, RaylibContext)>;
 pub type RaylibContext<'a> = (&'a mut RaylibHandle, &'a RaylibThread);
 
 #[allow(non_camel_case_types)]
@@ -54,7 +55,7 @@ pub struct UI {
 }
 
 pub struct UiHandlers {
-    pub on_loop: LoopHandler,
+    pub on_loop: BaseHandler,
     pub on_event: EventHandler,
 }
 

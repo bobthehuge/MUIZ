@@ -1,11 +1,10 @@
-use crate::ui::EnvMap;
+use crate::events::WidgetEvent;
+use crate::ui::{BaseHandler, EnvMap};
 
 use raylib::core::drawing::RaylibDrawHandle;
 use raylib::RaylibHandle;
 
-use std::cmp::Ordering;
-
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default)]
 pub enum DataObj {
     #[default]
     None,
@@ -13,54 +12,7 @@ pub enum DataObj {
     F32(f32),
     String(String),
     Vec(Vec<DataObj>),
-}
-
-#[repr(u8)]
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
-pub enum EventType {
-    #[default]
-    IDLE,
-    LOG,
-    PREDRAW,
-    DRAW,
-    POSTDRAW,
-    CLICK,
-    QUIT,
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct WidgetEvent(pub EventType, pub DataObj);
-
-impl WidgetEvent {
-    pub fn predrawcall() -> Self {
-        WidgetEvent(EventType::PREDRAW, DataObj::None)
-    }
-    pub fn drawcall() -> Self {
-        WidgetEvent(EventType::DRAW, DataObj::None)
-    }
-    pub fn postdrawcall() -> Self {
-        WidgetEvent(EventType::POSTDRAW, DataObj::None)
-    }
-}
-
-impl PartialEq for WidgetEvent {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1 == other.1
-    }
-}
-
-impl Eq for WidgetEvent {}
-
-impl Ord for WidgetEvent {
-    fn cmp(&self, other: &Self) -> Ordering {
-        (self.0 as u8).cmp(&(other.0 as u8))
-    }
-}
-
-impl PartialOrd for WidgetEvent {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some((self.0 as u8).cmp(&(other.0 as u8)))
-    }
+    BaseHandler(BaseHandler),
 }
 
 pub trait WidgetDrawable: Widget {
